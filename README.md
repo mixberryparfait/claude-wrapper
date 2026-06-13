@@ -1,6 +1,8 @@
 # claude-wrapper
 
-`claude -p`（ヘッドレスモード）互換の CLI ラッパー。内部ではサブスク課金対象の**対話モード** Claude Code を PTY 上で起動して 1 往復だけ実行し、応答を `~/.claude/projects/` のセッション JSONL から厳密に抽出して `-p` 互換の出力・終了コードを返す。
+`claude -p`（ヘッドレスモード）互換の CLI ラッパー。
+
+内部ではサブスク課金対象の**対話モード** Claude Code を PTY 上で起動して 1 往復だけ実行し、応答を `~/.claude/projects/` のセッション JSONL から抽出して `-p` 互換の出力・終了コードを返す
 
 2026-06-15 以降、`claude -p` がサブスク課金の対象外（API 従量課金）になることへの対策。
 
@@ -12,37 +14,6 @@ npm install
 
 mac / Windows 両対応（node-pty: forkpty / ConPTY）。Node.js >= 18。
 
-### 1 コマンドで実行する
-
-開発チェックアウトをそのまま `claude-wrapper` コマンドとして使う場合は、リポジトリ直下で一度だけ:
-
-```bash
-npm link
-```
-
-以後は `node bin/claude-wrapper.js ...` ではなく、どこからでも次のように実行できる。
-
-```bash
-claude-wrapper -p --model sonnet "hello"
-```
-
-### 既存システムからの差し替え
-
-どちらかの方法で:
-
-```bash
-# 1) コマンドを直接置き換え
-claude-wrapper -p "..."
-
-# 2) PATH の先頭に `claude` として置く（-p なしの起動はそのまま実体 claude へ透過）
-ln -s /path/to/claude-wrapper/bin/claude-wrapper.js ~/bin/claude
-```
-
-実体 claude の解決は PATH 検索（自分自身は除外）。`claude` として差し替える場合など、実体を明示したい場合は環境変数 `CLAUDE_WRAPPER_REAL_CLAUDE` を設定。
-
-```bash
-export CLAUDE_WRAPPER_REAL_CLAUDE=/path/to/real/claude
-```
 
 ## 使い方
 
@@ -76,10 +47,3 @@ claude-wrapper -p --resume <session-id> "続きの質問"   # ID 必須
 3. Stop hook（`--settings` で注入、センチネルファイル書込）+ JSONL 静止判定でターン完了を検知
 4. `~/.claude/projects/<cwd-slug>/<session-id>.jsonl` から text / json / stream-json を再構成して出力
 
-詳細は [docs/design.md](docs/design.md) を参照。
-
-## テスト
-
-```bash
-npm test          # unit テスト
-```
