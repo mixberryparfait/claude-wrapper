@@ -1,0 +1,18 @@
+{
+  "name": "claude-wrapper",
+  "version": "0.1.0",
+  "description": "Run `claude -p` compatible headless calls through an interactive (subscription-billed) Claude Code session",
+  "license": "MIT",
+  "bin": {
+    "claude-wrapper": "bin/claude-wrapper.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/unit.test.js"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  }
+}
