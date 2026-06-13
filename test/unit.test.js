@@ -7,6 +7,8 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { parseArgs } = require("../src/args");
+const { resolveRealClaudeLauncher } = require("../src/real-claude");
+const { spawnCommandForPty } = require("../src/pty-session");
 const { projectDirSlug, transcriptPath, TranscriptWatcher } = require("../src/transcript");
 const { formatText } = require("../src/output/text");
 const { buildResult } = require("../src/output/json");
@@ -58,14 +60,60 @@ test("parseArgs: no -p means plain interactive invocation", () => {
   assert.equal(r.print, false);
 });
 
+test("resolveRealClaude: Windows prefers npm command shim over bundled exe", { skip: process.platform !== "win32" }, () => {
+  const exeDir = fs.mkdtempSync(path.join(os.tmpdir(), "cw-real-claude-exe-"));
+  const cmdDir = fs.mkdtempSync(path.join(os.tmpdir(), "cw-real-claude-cmd-"));
+  const packageRoot = path.join(cmdDir, "node_modules", "@anthropic-ai", "claude-code");
+  const nativeRoot = path.join(packageRoot, "node_modules", "@anthropic-ai", `claude-code-win32-${process.arch}`);
+  const nativeBinary = path.join(nativeRoot, "claude.exe");
+  fs.writeFileSync(path.join(exeDir, "claude.exe"), "");
+  fs.mkdirSync(nativeRoot, { recursive: true });
+  fs.writeFileSync(path.join(packageRoot, "package.json"), "{}");
+  fs.writeFileSync(path.join(nativeRoot, "package.json"), "{}");
+  fs.writeFileSync(nativeBinary, "");
+  fs.writeFileSync(path.join(cmdDir, "claude.cmd"), "");
+  const oldPath = process.env.PATH;
+  try {
+    process.env.PATH = [exeDir, cmdDir].join(path.delimiter);
+    assert.deepEqual(resolveRealClaudeLauncher(), { command: nativeBinary, args: [] });
+  } finally {
+    process.env.PATH = oldPath;
+  }
+});
+
+test("spawnCommandForPty: Windows command shims run through cmd.exe", { skip: process.platform !== "win32" }, () => {
+  const spec = spawnCommandForPty("C:\\Program Files\\Claude\\claude.cmd", ["--session-id", "abc 123"]);
+  assert.match(path.basename(spec.command).toLowerCase(), /^cmd(\.exe)?$/);
+  assert.deepEqual(spec.args, [
+    "/d",
+    "/c",
+    "call",
+    "C:\\Program Files\\Claude\\claude.cmd",
+    "--session-id",
+    "abc 123",
+  ]);
+});
+
 test("projectDirSlug matches claude's project dir naming", () => {
-  assert.equal(projectDirSlug("/Users/foo/git/claude-wrapper"), "-Users-foo-git-claude-wrapper");
-  assert.equal(projectDirSlug("/Users/foo/my_app.v2"), "-Users-foo-my-app-v2");
+  if (process.platform === "win32") {
+    assert.equal(projectDirSlug("C:\\Users\\foo\\git\\claude-wrapper"), "C--Users-foo-git-claude-wrapper");
+    assert.equal(projectDirSlug("C:\\Users\\foo\\my_app.v2"), "C--Users-foo-my-app-v2");
+  } else {
+    assert.equal(projectDirSlug("/Users/foo/git/claude-wrapper"), "-Users-foo-git-claude-wrapper");
+    assert.equal(projectDirSlug("/Users/foo/my_app.v2"), "-Users-foo-my-app-v2");
+  }
 });
 
 test("transcriptPath layout", () => {
-  const p = transcriptPath("/Users/foo/bar", "abc");
-  assert.ok(p.endsWith(path.join(".claude", "projects", "-Users-foo-bar", "abc.jsonl")));
+  const cwd =
+    process.platform === "win32"
+      ? "C:\\Users\\foo\\bar"
+      : "/Users/foo/bar";
+  const p = transcriptPath(cwd, "abc");
+  assert.equal(path.basename(p), "abc.jsonl");
+  assert.equal(path.basename(path.dirname(p)), projectDirSlug(cwd));
+  assert.equal(path.basename(path.dirname(path.dirname(p))), "projects");
+  assert.equal(path.basename(path.dirname(path.dirname(path.dirname(p)))), ".claude");
 });
 
 function entry(type, id, blocks, extra = {}) {

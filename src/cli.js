@@ -2,14 +2,16 @@
 
 const { spawn } = require("child_process");
 const { parseArgs } = require("./args");
-const { resolveRealClaude } = require("./real-claude");
+const { resolveRealClaudeLauncher } = require("./real-claude");
 
 const VALID_FORMATS = ["text", "json", "stream-json"];
 
 function passthrough(realClaude, argv) {
   return new Promise((resolve) => {
-    const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(realClaude);
-    const child = spawn(realClaude, argv, { stdio: "inherit", shell: needsShell });
+    const command = realClaude.command || realClaude;
+    const args = [...(realClaude.args || []), ...argv];
+    const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+    const child = spawn(command, args, { stdio: "inherit", shell: needsShell });
     child.on("exit", (code, signal) => resolve(signal ? 1 : code === null ? 1 : code));
     child.on("error", (err) => {
       process.stderr.write(`claude-wrapper: failed to launch claude: ${err.message}\n`);
@@ -20,7 +22,7 @@ function passthrough(realClaude, argv) {
 
 async function main(argv) {
   const parsed = parseArgs(argv);
-  const realClaude = resolveRealClaude();
+  const realClaude = resolveRealClaudeLauncher();
   if (!realClaude) {
     process.stderr.write(
       "claude-wrapper: real claude executable not found in PATH " +

@@ -23,7 +23,18 @@ function ensureNodePtySpawnHelperExecutable() {
 }
 
 function stripAnsi(str) {
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, " ").replace(/\x1b\][^\x07]*\x07/g, " ");
+  return str.replace(/\x1b\[[?0-9;]*[ -/]*[@-~]/g, " ").replace(/\x1b\][^\x07]*\x07/g, " ");
+}
+
+function spawnCommandForPty(command, args) {
+  if (process.platform !== "win32" || !/\.(cmd|bat)$/i.test(command)) {
+    return { command, args };
+  }
+
+  return {
+    command: process.env.ComSpec || "cmd.exe",
+    args: ["/d", "/c", "call", command, ...args],
+  };
 }
 
 class PtySession {
@@ -54,7 +65,8 @@ class PtySession {
   start() {
     ensureNodePtySpawnHelperExecutable();
     const pty = require("node-pty");
-    this.child = pty.spawn(this.command, this.args, {
+    const spawnSpec = spawnCommandForPty(this.command, this.args);
+    this.child = pty.spawn(spawnSpec.command, spawnSpec.args, {
       name: "xterm-256color",
       cols: 120,
       rows: 40,
@@ -129,4 +141,4 @@ class PtySession {
   }
 }
 
-module.exports = { PtySession, stripAnsi };
+module.exports = { PtySession, stripAnsi, spawnCommandForPty };

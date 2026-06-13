@@ -98,8 +98,8 @@ async function runHeadless(parsed, realClaude) {
   };
 
   const session = new PtySession({
-    command: realClaude,
-    args: [...parsed.passthrough, ...extraArgs],
+    command: realClaude.command || realClaude,
+    args: [...(realClaude.args || []), ...parsed.passthrough, ...extraArgs],
     cwd,
     env,
   });
@@ -147,7 +147,10 @@ async function runHeadless(parsed, realClaude) {
   let errorMessage = null;
   if (isError) {
     if (watcher.apiError) errorMessage = watcher.apiError;
-    else if (timedOut) errorMessage = `claude-wrapper: timed out after ${timeoutMs}ms`;
+    else if (timedOut) {
+      const recent = session.recentPlain().slice(-300);
+      errorMessage = `claude-wrapper: timed out after ${timeoutMs}ms${recent ? `: ${recent}` : ""}`;
+    }
     else if (exitInfo) {
       errorMessage =
         `claude exited before completing the turn ` +
